@@ -16,6 +16,7 @@ interface StoreResult {
   address: string;
   distanceKm: number;
   price: number;
+  priceSource?: string;
   available: boolean;
   callStatus: string;
   note: string;
@@ -35,7 +36,7 @@ function App() {
   const [selectedProduct, setSelectedProduct] = useState<Product>(PRODUCTS[0]);
   const [brandFilter, setBrandFilter] = useState('All');
   const [radius, setRadius] = useState(50);
-  const [sortBy, setSortBy] = useState<'distance' | 'price' | 'brand'>('distance');
+  const [sortBy, setSortBy] = useState<'distance' | 'brand'>('distance');
   const [chainFilter, setChainFilter] = useState('all');
   const [stores, setStores] = useState<StoreResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -43,6 +44,7 @@ function App() {
   const [agentNote, setAgentNote] = useState('');
   const [config, setConfig] = useState({ voiceMode: 'SIMULATION', searchSpaceConfigured: false, storeCount: 22 });
   const [dataSource, setDataSource] = useState('');
+  const [resultMeta, setResultMeta] = useState({ discoveredStores: 0, calledStores: 0 });
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -62,8 +64,7 @@ function App() {
   const visibleStores = useMemo(() => {
     let list = [...stores];
     if (chainFilter !== 'all') list = list.filter(s => s.chain === chainFilter);
-    if (sortBy === 'price') list = [...list].sort((a, b) => a.price - b.price);
-    else if (sortBy === 'brand') list = [...list].sort((a, b) => a.chain.localeCompare(b.chain));
+    if (sortBy === 'brand') list = [...list].sort((a, b) => a.chain.localeCompare(b.chain));
     else list = [...list].sort((a, b) => a.distanceKm - b.distanceKm);
     return list;
   }, [stores, chainFilter, sortBy]);
@@ -92,6 +93,10 @@ function App() {
       setStores(data.results || []);
       setAgentNote(data.agentNote || '');
       setDataSource(data.source || '');
+      setResultMeta({
+        discoveredStores: data.discoveredStores ?? data.totalStores ?? 0,
+        calledStores: data.calledStores ?? (data.results || []).length
+      });
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Backend not running. Run: npm run dev';
       setError(msg);
@@ -122,7 +127,7 @@ function App() {
             </h1>
             <p className="lede">
               Pick a product. Our agent dials every consumer-electronics and gaming store in a {radius} km radius
-              and reports back who actually has it — with price and address. You walk in, you pay, you leave.
+              and reports back who actually has it. Store addresses and distances come from place data; live seller pricing is not shown unless confirmed.
             </p>
             <div className="stats">
               <div><strong>{config.voiceMode?.includes('LIVE') ? 'live' : 'agent'}</strong><span>voice calls</span></div>
@@ -188,7 +193,7 @@ function App() {
               <h2>{selectedProduct.name}</h2>
               <p>{agentNote || `Searching within ${radius}km of Bengaluru center`}{dataSource ? ` · source: ${dataSource.replace(/_/g, ' ')}` : ''}</p>
             </div>
-            <div className="stock-badge">{inStockCount} in stock / {visibleStores.length} contacted</div>
+            <div className="stock-badge">{inStockCount} in stock / {visibleStores.length} called</div>
           </div>
 
           <div className="filters">
@@ -204,7 +209,6 @@ function App() {
               Sort by
               <select value={sortBy} onChange={e => setSortBy(e.target.value as typeof sortBy)}>
                 <option value="distance">Distance (nearest first)</option>
-                <option value="price">Price (low to high)</option>
                 <option value="brand">Brand / chain name</option>
               </select>
             </label>
@@ -239,8 +243,7 @@ function App() {
                   </div>
                   <p className="addr">{s.address}</p>
                   <div className="chips">
-                    <span>📏 {s.distanceKm} km</span>
-                    <span>💰 ₹{s.price.toLocaleString()}</span>
+                    <span>📏 {s.distanceKm} km from BLR center</span>
                     <span>📞 {s.phone ? <a href={`tel:${s.phone}`}>{s.phone}</a> : 'not listed'}</span>
                     <span className="chain">{s.chain}</span>
                   </div>
@@ -254,7 +257,7 @@ function App() {
 
       <footer>
         <span>built for Bengaluru shoppers</span>
-        <span>physical retail · agentic stock lookup</span>
+        <span>{resultMeta.discoveredStores ? `${resultMeta.discoveredStores} discovered · ${resultMeta.calledStores} called` : 'physical retail · agentic stock lookup'}</span>
       </footer>
     </div>
   );

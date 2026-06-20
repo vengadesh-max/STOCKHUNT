@@ -21,7 +21,7 @@ function haversineKm(lat, lng) {
   const a =
     Math.sin(dLat / 2) ** 2 +
     Math.cos((BLR.lat * Math.PI) / 180) * Math.cos((lat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
-  return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) * 10) / 10;
+  return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) * 100) / 100;
 }
 
 function apiError(status, data) {
@@ -146,6 +146,7 @@ async function resolveStore(entry, radiusKm, defaultPrice, apiKey) {
     address: props.formatted || props.address_line1 || entry.query,
     distanceKm: haversineKm(lat, lng),
     price: defaultPrice,
+    priceSource: 'msrp_estimate',
     googleMapsUri: props.datasource?.raw?.website || props.website,
     source: 'geoapify'
   });
@@ -185,6 +186,7 @@ async function scanNearbyStores(radiusKm, defaultPrice, apiKey) {
       address: props.formatted || props.address_line1 || '',
       distanceKm: haversineKm(lat, lng),
       price: defaultPrice,
+      priceSource: 'msrp_estimate',
       googleMapsUri: props.datasource?.raw?.website || props.website,
       source: 'geoapify_scan'
     });

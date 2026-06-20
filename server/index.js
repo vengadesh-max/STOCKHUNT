@@ -38,7 +38,7 @@ function filterResults(results, { brandFilter, chainFilter, radius }) {
 }
 
 app.post('/api/search', async (req, res) => {
-  const { product, brand, sortBy = 'distance', radius = 50, chainFilter, brandFilter } = req.body;
+  const { product, brand, sortBy = 'distance', radius = 50, chainFilter, brandFilter, includeDiscovered = false } = req.body;
   if (!product) return res.status(400).json({ error: 'Product is required' });
 
   try {
@@ -64,9 +64,11 @@ app.post('/api/search', async (req, res) => {
         source,
         agentNote: `${agentNote || 'Store discovery completed.'} No callable seller phone numbers were found within ${radius}km.`,
         voiceMode: getVoiceMode(),
+        discoveredStores: scoped.length,
+        calledStores: 0,
         totalStores: scoped.length,
         inStock: 0,
-        results
+        results: includeDiscovered ? results : []
       });
     }
 
@@ -85,7 +87,7 @@ app.post('/api/search', async (req, res) => {
       }));
 
     verified.forEach(r => callResults.set(r.id, r));
-    let results = sortResults([...verified, ...skipped], sortBy);
+    let results = sortResults(includeDiscovered ? [...verified, ...skipped] : verified, sortBy);
 
     return res.json({
       product,
@@ -94,6 +96,8 @@ app.post('/api/search', async (req, res) => {
       source,
       agentNote,
       voiceMode: getVoiceMode(),
+      discoveredStores: scoped.length,
+      calledStores: callable.length,
       totalStores: scoped.length,
       inStock: results.filter(r => r.available).length,
       results
