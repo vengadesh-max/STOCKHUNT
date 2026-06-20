@@ -6,8 +6,6 @@ import { getCachedStore, setCachedStore } from './store-cache.js';
 import { getVerifiedContact } from './verified-contacts.js';
 
 const GEMINI_MODELS = ['gemini-2.0-flash', 'gemini-1.5-flash'];
-const BLR_CENTER = { lat: 12.9716, lng: 77.5946 };
-
 function estimatePrice(product) {
   const p = product.toLowerCase();
   if (p.includes('pro')) return 74990;
@@ -37,7 +35,7 @@ function fromVerifiedOnly(defaultPrice, radiusKm) {
   return stores;
 }
 
-export async function discoverStores(product, radiusKm = 50) {
+export async function discoverStores(product, radiusKm = 50, origin) {
   const defaultPrice = estimatePrice(product);
   let best = null;
   let searchSpaceAuthError = null;
@@ -49,11 +47,16 @@ export async function discoverStores(product, radiusKm = 50) {
 
   // 1) Geoapify Places + Place Details — live store contact discovery
   try {
-    const geoapify = await discoverFromGeoapify(radiusKm, defaultPrice);
+    const geoapify = await discoverFromGeoapify(radiusKm, defaultPrice, origin);
     remember(geoapify);
     if (geoapify?.stores?.length >= 1) return geoapify;
   } catch (err) {
     console.warn('Geoapify failed:', err.message);
+    if (isGeoapifyConfigured()) throw err;
+  }
+
+  if (isGeoapifyConfigured()) {
+    throw new Error('Geoapify did not find nearby electronics or game stores for this location and radius.');
   }
 
   // 2) SearchSpace API — live store contact discovery

@@ -42,7 +42,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [agentNote, setAgentNote] = useState('');
-  const [config, setConfig] = useState({ voiceMode: 'SIMULATION', searchSpaceConfigured: false, storeCount: 22 });
+  const [config, setConfig] = useState({ voiceMode: 'SIMULATION', searchSpaceConfigured: false, storeSource: 'geoapify_live_scan' });
   const [dataSource, setDataSource] = useState('');
   const [resultMeta, setResultMeta] = useState({ discoveredStores: 0, calledStores: 0 });
   const [error, setError] = useState('');
@@ -71,12 +71,26 @@ function App() {
 
   const inStockCount = useMemo(() => visibleStores.filter(s => s.available).length, [visibleStores]);
 
+  const getLocation = () =>
+    new Promise<GeolocationPosition>((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error('Browser location is not available.'));
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: true,
+        timeout: 12000,
+        maximumAge: 5 * 60 * 1000
+      });
+    });
+
   const dispatchAgent = async () => {
     setLoading(true);
     setShowResults(true);
     setStores([]);
     setError('');
     try {
+      const position = await getLocation();
       const res = await fetch('/api/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -85,6 +99,8 @@ function App() {
           brand: selectedProduct.brand,
           sortBy,
           radius,
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
           chainFilter: chainFilter === 'all' ? null : chainFilter
         })
       });
@@ -126,12 +142,12 @@ function App() {
               <em>all over Bengaluru.</em>
             </h1>
             <p className="lede">
-              Pick a product. Our agent dials every consumer-electronics and gaming store in a {radius} km radius
+              Pick a product. Our agent scans live place data around your current location in a {radius} km radius
               and reports back who actually has it. Store addresses and distances come from place data; live seller pricing is not shown unless confirmed.
             </p>
             <div className="stats">
               <div><strong>{config.voiceMode?.includes('LIVE') ? 'live' : 'agent'}</strong><span>voice calls</span></div>
-              <div><strong>{config.storeCount}</strong><span>stores indexed</span></div>
+              <div><strong>live</strong><span>place scan</span></div>
               <div><strong>{radius}km</strong><span>radius</span></div>
             </div>
           </section>
@@ -173,7 +189,7 @@ function App() {
             </div>
 
             <div className="radius-block">
-              <label>search radius from city center</label>
+              <label>search radius from your location</label>
               <div className="radius-val">{radius}km</div>
               <input type="range" min={5} max={50} value={radius} onChange={e => setRadius(+e.target.value)} />
               <div className="radius-hint">5km — 50km</div>
@@ -182,7 +198,7 @@ function App() {
             <button className="dispatch" onClick={dispatchAgent} disabled={loading}>
               {loading ? 'agent calling stores…' : 'dispatch agent →'}
             </button>
-            <p className="hint">agent will call every matching store</p>
+            <p className="hint">browser location is required to scan nearby shops</p>
           </section>
         </main>
       ) : (
@@ -191,7 +207,7 @@ function App() {
             <button className="back" onClick={() => setShowResults(false)}>← back</button>
             <div>
               <h2>{selectedProduct.name}</h2>
-              <p>{agentNote || `Searching within ${radius}km of Bengaluru center`}{dataSource ? ` · source: ${dataSource.replace(/_/g, ' ')}` : ''}</p>
+              <p>{agentNote || `Searching within ${radius}km of your location`}{dataSource ? ` · source: ${dataSource.replace(/_/g, ' ')}` : ''}</p>
             </div>
             <div className="stock-badge">{inStockCount} in stock / {visibleStores.length} called</div>
           </div>
@@ -243,7 +259,7 @@ function App() {
                   </div>
                   <p className="addr">{s.address}</p>
                   <div className="chips">
-                    <span>📏 {s.distanceKm} km from BLR center</span>
+                    <span>📏 {s.distanceKm} km from you</span>
                     <span>📞 {s.phone ? <a href={`tel:${s.phone}`}>{s.phone}</a> : 'not listed'}</span>
                     <span className="chain">{s.chain}</span>
                   </div>

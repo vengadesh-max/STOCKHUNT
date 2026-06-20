@@ -4,7 +4,6 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { discoverStores, isPlacesConfigured, isSearchSpaceConfigured, isGeoapifyConfigured } from './gemini-agent.js';
-import { STORE_QUERIES } from './store-queries.js';
 import { verifyStockWithCall, isConfigured, updateCallStatus, recordCallResponse, getVoiceMode } from './agora-voice.js';
 
 dotenv.config();
@@ -38,11 +37,15 @@ function filterResults(results, { brandFilter, chainFilter, radius }) {
 }
 
 app.post('/api/search', async (req, res) => {
-  const { product, brand, sortBy = 'distance', radius = 50, chainFilter, brandFilter, includeDiscovered = false } = req.body;
+  const { product, brand, sortBy = 'distance', radius = 50, chainFilter, brandFilter, includeDiscovered = false, lat, lng } = req.body;
   if (!product) return res.status(400).json({ error: 'Product is required' });
+  const origin = { lat: Number(lat), lng: Number(lng) };
+  if (!Number.isFinite(origin.lat) || !Number.isFinite(origin.lng)) {
+    return res.status(400).json({ error: 'Location is required', message: 'Allow browser location so the app can search shops around you.' });
+  }
 
   try {
-    const { stores, source, agentNote } = await discoverStores(product, radius);
+    const { stores, source, agentNote } = await discoverStores(product, radius, origin);
     let scoped = filterResults(stores, { brandFilter, chainFilter, radius });
 
     const callable = scoped.filter(s => s.phone && s.phone.replace(/\D/g, '').length >= 10);
@@ -116,7 +119,7 @@ app.get('/api/config-status', (req, res) => {
     geminiConfigured: !!process.env.GEMINI_API_KEY,
     googlePlacesConfigured: isPlacesConfigured(),
     voiceMode: getVoiceMode(),
-    storeCount: STORE_QUERIES.length
+    storeSource: 'geoapify_live_scan'
   });
 });
 
@@ -140,7 +143,9 @@ app.post('/api/agora-webhook', (req, res) => {
 app.get('/api/stores', async (req, res) => {
   try {
     const radius = Number(req.query.radius) || 50;
-    const { stores } = await discoverStores('PlayStation 5', radius);
+    const lat = Number(req.query.lat);
+    const lng = Number(req.query.lng);
+    const { stores } = await discoverStores('PlayStation 5', radius, { lat, lng });
     return res.json({ stores, count: stores.length });
   } catch (err) {
     return res.status(503).json({ error: err.message });
