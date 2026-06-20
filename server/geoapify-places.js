@@ -64,6 +64,13 @@ function scorePlace(entry, feature) {
   return terms.reduce((score, term) => score + (haystack.includes(term) ? 1 : 0), 0);
 }
 
+function chainMatches(entry, feature) {
+  const props = feature.properties || {};
+  const haystack = `${props.name || ''} ${props.formatted || ''} ${props.address_line1 || ''}`.toLowerCase();
+  const tokens = entry.chain.toLowerCase().split(/\s+/).filter((term) => term.length > 2);
+  return tokens.every((term) => haystack.includes(term));
+}
+
 async function searchPlace(entry, radiusKm, apiKey) {
   const textParams = new URLSearchParams({
     text: entry.query,
@@ -77,6 +84,7 @@ async function searchPlace(entry, radiusKm, apiKey) {
   const textData = await getJson(`${GEOCODE_URL}?${textParams}`);
   const textFeatures = textData.features || [];
   const matched = textFeatures
+    .filter((feature) => chainMatches(entry, feature))
     .map((feature) => ({ feature, score: scorePlace(entry, feature) }))
     .sort((a, b) => b.score - a.score)[0]?.feature;
   if (matched) return matched;
@@ -96,6 +104,7 @@ async function searchPlace(entry, radiusKm, apiKey) {
   if (!features.length) return null;
 
   return features
+    .filter((feature) => chainMatches(entry, feature))
     .map((feature) => ({ feature, score: scorePlace(entry, feature) }))
     .sort((a, b) => b.score - a.score)[0]?.feature || null;
 }

@@ -122,14 +122,20 @@ app.get('/api/stores', async (req, res) => {
 });
 
 const port = process.env.PORT || 4000;
+const isVercel = !!process.env.VERCEL;
+const isDirectRun = process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
 
-if (process.env.NODE_ENV === 'production') {
+if (process.env.NODE_ENV === 'production' && !isVercel) {
   const dist = path.join(__dirname, '..', 'dist');
   app.use(express.static(dist));
   app.get('*', (_req, res) => res.sendFile(path.join(dist, 'index.html')));
 }
 
-app.listen(port, () => {
-  console.log(`Stock Hunt → http://localhost:${port}`);
-  console.log(`SearchSpace: ${isSearchSpaceConfigured() ? 'ON' : 'OFF'} | Agora: ${getVoiceMode()} | Gemini: ${process.env.GEMINI_API_KEY ? 'ON' : 'OFF'}`);
-});
+if (isDirectRun) {
+  app.listen(port, () => {
+    console.log(`Stock Hunt → http://localhost:${port}`);
+    console.log(`SearchSpace: ${isSearchSpaceConfigured() ? 'ON' : 'OFF'} | Agora: ${getVoiceMode()} | Gemini: ${process.env.GEMINI_API_KEY ? 'ON' : 'OFF'}`);
+  });
+}
+
+export default app;

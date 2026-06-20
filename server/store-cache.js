@@ -1,8 +1,10 @@
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-const CACHE_FILE = path.join(path.dirname(fileURLToPath(import.meta.url)), '.store-cache.json');
+const CACHE_DIR = process.env.VERCEL ? os.tmpdir() : path.dirname(fileURLToPath(import.meta.url));
+const CACHE_FILE = path.join(CACHE_DIR, '.store-cache.json');
 const TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 let memory = null;
@@ -18,7 +20,11 @@ function load() {
 }
 
 function save() {
-  fs.writeFileSync(CACHE_FILE, JSON.stringify(memory, null, 2));
+  try {
+    fs.writeFileSync(CACHE_FILE, JSON.stringify(memory, null, 2));
+  } catch {
+    // Serverless filesystems may be ephemeral or read-only outside /tmp.
+  }
 }
 
 export function getCachedStore(id) {

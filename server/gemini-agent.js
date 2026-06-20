@@ -51,19 +51,21 @@ export async function discoverStores(product, radiusKm = 50) {
   try {
     const geoapify = await discoverFromGeoapify(radiusKm, defaultPrice);
     remember(geoapify);
-    if (geoapify?.stores?.length >= 3) return geoapify;
+    if (geoapify?.stores?.length >= 1) return geoapify;
   } catch (err) {
     console.warn('Geoapify failed:', err.message);
   }
 
   // 2) SearchSpace API — live store contact discovery
-  try {
-    const ss = await discoverFromSearchSpace(radiusKm, defaultPrice);
-    remember(ss);
-    if (ss?.stores?.length >= 8) return ss;
-  } catch (err) {
-    if (err.status === 401 || err.status === 403) searchSpaceAuthError = err;
-    console.warn('SearchSpace failed:', err.message);
+  if (!isGeoapifyConfigured()) {
+    try {
+      const ss = await discoverFromSearchSpace(radiusKm, defaultPrice);
+      remember(ss);
+      if (ss?.stores?.length >= 8) return ss;
+    } catch (err) {
+      if (err.status === 401 || err.status === 403) searchSpaceAuthError = err;
+      console.warn('SearchSpace failed:', err.message);
+    }
   }
 
   // 3) Google Places API — pulls phone/address exactly as on Google Maps
