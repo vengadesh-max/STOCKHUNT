@@ -29,3 +29,4 @@ A simple web app that helps you search for PS5 stock at Bengaluru electronics re
 - SearchSpace is used to find real seller phone numbers from the web. The app does not scrape Google directly.
 - If SearchSpace is missing or unauthorized, the platform can only use local verified fallback contacts.
 - The verification step uses an AI assistant to simulate a voice call check and return availability.
+![Demo](src/image.png)
