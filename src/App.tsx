@@ -12,7 +12,7 @@ interface StoreResult {
   chain: string;
   name: string;
   type: string;
-  phone: string;
+  phone?: string | null;
   address: string;
   distanceKm: number;
   price: number;
@@ -241,7 +241,7 @@ function App() {
                   <div className="chips">
                     <span>📏 {s.distanceKm} km</span>
                     <span>💰 ₹{s.price.toLocaleString()}</span>
-                    <span>📞 <a href={`tel:${s.phone}`}>{s.phone}</a></span>
+                    <span>📞 {s.phone ? <a href={`tel:${s.phone}`}>{s.phone}</a> : 'not listed'}</span>
                     <span className="chain">{s.chain}</span>
                   </div>
                   <p className="note">{s.note}</p>

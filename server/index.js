@@ -47,6 +47,16 @@ app.post('/api/search', async (req, res) => {
 
     const callable = scoped.filter(s => s.phone && s.phone.replace(/\D/g, '').length >= 10);
     if (callable.length === 0) {
+      const results = sortResults(scoped.map((store) => ({
+        ...store,
+        available: false,
+        callStatus: 'SKIPPED',
+        verified: false,
+        note: store.phone
+          ? `Could not call ${store.name}; phone number is not in a callable format.`
+          : `Discovered nearby, but Geoapify has no phone number for ${store.name}.`
+      })), sortBy);
+
       return res.json({
         product,
         brand,
@@ -56,14 +66,26 @@ app.post('/api/search', async (req, res) => {
         voiceMode: getVoiceMode(),
         totalStores: scoped.length,
         inStock: 0,
-        results: []
+        results
       });
     }
 
     const verified = await Promise.all(callable.map(store => verifyStockWithCall(store, product)));
+    const verifiedIds = new Set(verified.map((store) => store.id));
+    const skipped = scoped
+      .filter((store) => !verifiedIds.has(store.id))
+      .map((store) => ({
+        ...store,
+        available: false,
+        callStatus: 'SKIPPED',
+        verified: false,
+        note: store.phone
+          ? `Could not call ${store.name}; phone number is not in a callable format.`
+          : `Discovered nearby, but Geoapify has no phone number for ${store.name}.`
+      }));
 
     verified.forEach(r => callResults.set(r.id, r));
-    let results = sortResults(verified, sortBy);
+    let results = sortResults([...verified, ...skipped], sortBy);
 
     return res.json({
       product,

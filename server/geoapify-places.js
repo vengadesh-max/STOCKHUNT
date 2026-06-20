@@ -52,6 +52,10 @@ function pickPhone(props = {}) {
   return null;
 }
 
+function placeKey(store) {
+  return store.phone || `${store.name}-${store.address}`.toLowerCase();
+}
+
 function scorePlace(entry, feature) {
   const props = feature.properties || {};
   const haystack = `${props.name || ''} ${props.formatted || ''} ${props.address_line1 || ''}`.toLowerCase();
@@ -131,7 +135,6 @@ async function resolveStore(entry, radiusKm, defaultPrice, apiKey) {
   const details = await fetchDetails(place.properties?.place_id, apiKey);
   const props = { ...(place.properties || {}), ...(details?.properties || {}) };
   const phone = pickPhone(props);
-  if (!phone) return null;
 
   const lat = Number(props.lat ?? place.properties?.lat ?? place.geometry?.coordinates?.[1] ?? BLR.lat);
   const lng = Number(props.lon ?? place.properties?.lon ?? place.geometry?.coordinates?.[0] ?? BLR.lng);
@@ -149,6 +152,45 @@ async function resolveStore(entry, radiusKm, defaultPrice, apiKey) {
 
   setCachedStore(`geoapify:${entry.id}`, store);
   return store;
+}
+
+async function scanNearbyStores(radiusKm, defaultPrice, apiKey) {
+  const limit = Number(process.env.GEOAPIFY_SCAN_LIMIT) || 80;
+  const params = new URLSearchParams({
+    categories: CATEGORIES,
+    filter: `circle:${BLR.lng},${BLR.lat},${radiusKm * 1000}`,
+    bias: `proximity:${BLR.lng},${BLR.lat}`,
+    limit: String(limit),
+    lang: 'en',
+    apiKey
+  });
+
+  const data = await getJson(`${PLACES_URL}?${params}`);
+  const features = data.features || [];
+  const stores = await runBatch(features, async (feature) => {
+    const details = await fetchDetails(feature.properties?.place_id, apiKey);
+    const props = { ...(feature.properties || {}), ...(details?.properties || {}) };
+    const name = props.name || props.address_line1;
+    if (!name) return null;
+
+    const lat = Number(props.lat ?? feature.properties?.lat ?? feature.geometry?.coordinates?.[1] ?? BLR.lat);
+    const lng = Number(props.lon ?? feature.properties?.lon ?? feature.geometry?.coordinates?.[0] ?? BLR.lng);
+    const chain = props.brand || name;
+
+    return enrichStore({
+      id: `geoapify-${props.place_id || `${lat}-${lng}`}`.replace(/[^a-zA-Z0-9_-]/g, '-'),
+      chain,
+      name,
+      phone: pickPhone(props),
+      address: props.formatted || props.address_line1 || '',
+      distanceKm: haversineKm(lat, lng),
+      price: defaultPrice,
+      googleMapsUri: props.datasource?.raw?.website || props.website,
+      source: 'geoapify_scan'
+    });
+  }, 8);
+
+  return stores.filter(Boolean);
 }
 
 async function runBatch(items, fn, size = 3) {
@@ -173,14 +215,16 @@ export async function discoverFromGeoapify(radiusKm = 50, defaultPrice = 54990) 
     STORE_QUERIES,
     (q) => resolveStore(q, radiusKm, defaultPrice, apiKey)
   );
-  const unique = [...new Map(stores.map((store) => [store.phone, store])).values()]
-    .filter((store) => store.distanceKm <= radiusKm && isRealPhone(store.phone));
+  const scanned = await scanNearbyStores(radiusKm, defaultPrice, apiKey);
+  const unique = [...new Map([...stores, ...scanned].map((store) => [placeKey(store), store])).values()]
+    .filter((store) => store.distanceKm <= radiusKm);
 
   if (!unique.length) return null;
+  const callable = unique.filter((store) => isRealPhone(store.phone)).length;
   return {
     stores: unique,
     source: 'geoapify',
-    agentNote: `Geoapify found ${unique.length} Bengaluru stores with callable phone numbers.`
+    agentNote: `Geoapify found ${unique.length} nearby electronics/game stores; ${callable} have callable phone numbers.`
   };
 }
 
